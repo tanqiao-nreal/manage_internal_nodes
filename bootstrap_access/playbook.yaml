@@ -1,0 +1,93 @@
+- name: Trust the project's authorized keys on the bastion relay account and every managed host
+  hosts: jump_admin
+  gather_facts: false
+  vars:
+    install_script_path: "{{ playbook_dir }}/install_keys.ps1"
+    encode_script_path: "{{ playbook_dir }}/../scripts/encode_ps_command.py"
+    install_on_host_script_path: "{{ playbook_dir }}/install_on_host.sh"
+    authorized_keys_path: "{{ playbook_dir }}/authorized_keys"
+  tasks:
+    - name: Ensure the bastion relay account's .ssh directory exists
+      ansible.builtin.file:
+        path: /home/bastion/.ssh
+        state: directory
+        owner: bastion
+        group: bastion
+        mode: "0700"
+      become: true
+
+    - name: Sync the project's authorized_keys onto the bastion relay account
+      # Without this, a key added only to bootstrap_access/authorized_keys
+      # would be trusted on the computes but rejected at the relay itself,
+      # so its owner could never get far enough to use that trust.
+      ansible.builtin.copy:
+        dest: /home/bastion/.ssh/authorized_keys
+        content: "{{ lookup('file', authorized_keys_path) }}\n"
+        owner: bastion
+        group: bastion
+        mode: "0600"
+      become: true
+
+    - name: Read the jump admin account's own public key
+      ansible.builtin.command:
+        cmd: cat ~/.ssh/id_ed25519.pub
+      changed_when: false
+      register: jump_admin_pubkey
+
+    - name: Stage the full set of trusted keys for the managed computes
+      ansible.builtin.tempfile:
+        state: file
+        suffix: authorized_keys
+      register: staged_keys
+
+    - name: Write the combined key list to the staged file
+      ansible.builtin.copy:
+        dest: "{{ staged_keys.path }}"
+        content: "{{ lookup('file', authorized_keys_path) }}\n{{ jump_admin_pubkey.stdout }}\n"
+
+    - name: Encode the Windows key-install script for -EncodedCommand
+      ansible.builtin.command:
+        cmd: "python3 {{ encode_script_path }} {{ install_script_path }}"
+      delegate_to: localhost
+      changed_when: false
+      register: encoded_ps_script
+
+    - name: Stage the per-host install script on jump_admin
+      ansible.builtin.tempfile:
+        state: file
+        suffix: install_on_host.sh
+      register: staged_install_script
+
+    - name: Copy the per-host install script onto jump_admin
+      ansible.builtin.copy:
+        src: "{{ install_on_host_script_path }}"
+        dest: "{{ staged_install_script.path }}"
+        mode: "0700"
+
+    - name: Install the keys into administrators_authorized_keys on each managed host
+      # See install_on_host.sh for what this runs and what its exit codes mean.
+      ansible.builtin.shell:
+        cmd: >
+          {{ staged_install_script.path }} {{ item }}
+          {{ hostvars[item].ansible_user }} {{ hostvars[item].ansible_host }}
+          {{ encoded_ps_script.stdout | trim }}
+          < {{ staged_keys.path }}
+      loop: "{{ groups['managed'] }}"
+      register: install_result
+      # A host's first-ever connection (new host key, first PowerShell
+      # invocation) has been observed to occasionally drop mid-run without
+      # a decodable error, even though the change lands; retry a couple of
+      # times before treating it as a real failure.
+      until: install_result.rc in [0, 77]
+      retries: 2
+      delay: 3
+      changed_when: install_result.rc == 77
+      failed_when: install_result.rc not in [0, 77]
+
+    - name: Remove the staged key file and install script
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ staged_keys.path }}"
+        - "{{ staged_install_script.path }}"

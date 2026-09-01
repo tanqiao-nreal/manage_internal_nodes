@@ -1,0 +1,65 @@
+all:
+  vars:
+    ansible_python_interpreter: auto_silent
+
+# 跳板机
+jumphost:
+  hosts:
+    jump_admin:
+      ansible_host: 10.32.9.14
+      ansible_user: xreal
+
+# 跳板机后的所有受管主机（采集站 + 计算站），均通过 bastion 中转
+managed:
+  vars:
+    ansible_ssh_common_args: "-o ProxyJump=bastion@10.32.9.14 -o StrictHostKeyChecking=accept-new"
+    # These are all Windows hosts reached over plain SSH (no ansible.windows
+    # collection / WinRM): this tells Ansible's connection layer to use
+    # PowerShell syntax for the shell-level plumbing (remote temp dirs, env
+    # vars, etc.) that ansible.builtin modules need, so modules like
+    # ansible.builtin.script/command/copy work directly against them.
+    ansible_shell_type: powershell
+  children:
+    # 采集站
+    collectors:
+      hosts:
+        collector_2:
+          ansible_host: 10.32.3.89
+          ansible_user: user
+        collector_3:
+          ansible_host: 10.32.3.91
+          ansible_user: user
+        collector_4:
+          ansible_host: 10.32.3.90
+          ansible_user: user
+        collector_5:
+          ansible_host: 10.32.6.5
+          ansible_user: user
+
+    # 计算站
+    computes:
+      hosts:
+        compute_1:
+          ansible_host: 10.32.13.67
+          ansible_user: xreal
+        compute_2:
+          ansible_host: 10.32.3.92
+          ansible_user: xreal
+        compute_3:
+          ansible_host: 10.32.3.42
+          ansible_user: xreal
+        compute_4:
+          ansible_host: 10.32.3.62
+          ansible_user: xreal
+        compute_6:
+          ansible_host: 10.32.3.4
+          ansible_user: xreal
+        compute_10:
+          ansible_host: 10.32.3.74
+          ansible_user: xreal
+        compute_14:
+          ansible_host: 10.32.3.84
+          ansible_user: xreal
+        compute_16:
+          ansible_host: 10.32.3.77
+          ansible_user: xreal

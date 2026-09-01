@@ -1,0 +1,28 @@
+- name: Query disk usage on every managed host
+  hosts: managed
+  gather_facts: false
+  tasks:
+    - name: Run the disk-usage query script
+      # ansible.builtin.script copies get_disk_usage.ps1 to the host and
+      # runs it directly - no need to inline it as an ssh command-line
+      # argument (that trick, used in bootstrap_access, is only needed
+      # there because that script also needs stdin piped into it).
+      # failed_when: false because an unreachable/erroring host should show
+      # up as an error row in the report, not abort the whole run.
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/get_disk_usage.ps1"
+        executable: "powershell -NoProfile -NonInteractive -File"
+      register: disk_result
+      changed_when: false
+      failed_when: false
+
+- name: Render the disk usage report
+  hosts: localhost
+  gather_facts: false
+  vars:
+    report_path: "{{ playbook_dir }}/report.html"
+  tasks:
+    - name: Render the disk usage report
+      ansible.builtin.template:
+        src: report.html.j2
+        dest: "{{ report_path }}"

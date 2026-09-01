@@ -1,0 +1,19 @@
+- name: My first play
+  hosts: computes
+  tasks:
+   - name: Ping my hosts
+     ansible.builtin.ping:
+
+   - name: Print message
+     ansible.builtin.debug:
+       msg: Hello world
+
+   - name: Run python test script
+     ansible.builtin.script: test.py
+     args:
+       executable: python3
+     register: python_result
+
+   - name: Show python script output
+     ansible.builtin.debug:
+       msg: "{{ python_result.stdout }}"

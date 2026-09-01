@@ -1,0 +1,2 @@
+ssh-ed25519 XXXXXXXXXXX one@example.com
+ssh-rsa XXXXXXXXXXX another@example.com

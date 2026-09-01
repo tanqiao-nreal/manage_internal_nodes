@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Disk Usage Report</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0b0d12; color: #e6e6e6; padding: 2rem; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .meta { color: #888; margin-bottom: 2rem; font-size: 0.85rem; }
+  .host { margin-bottom: 1.5rem; border: 1px solid #262a33; border-radius: 8px; overflow: hidden; }
+  .host-header { background: #161a22; padding: 0.6rem 1rem; font-weight: 600; display: flex; justify-content: space-between; }
+  .host-header .status-error { color: #ff6b6b; font-weight: normal; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 0.5rem 1rem; font-size: 0.9rem; }
+  th { color: #9aa4b2; font-weight: 500; border-bottom: 1px solid #262a33; }
+  td { border-bottom: 1px solid #1c2028; }
+  tr:last-child td { border-bottom: none; }
+  .bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
+  .bar-track { background: #262a33; border-radius: 4px; height: 8px; width: 140px; overflow: hidden; flex-shrink: 0; }
+  .bar-fill { height: 100%; background: #4c8bf5; }
+  .bar-fill.warn { background: #e0a530; }
+  .bar-fill.crit { background: #e05656; }
+  .pct { font-size: 0.8rem; color: #9aa4b2; min-width: 2.5rem; }
+  .error-row { color: #ff6b6b; padding: 0.8rem 1rem; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<h1>Disk Usage Report</h1>
+<div class="meta">Generated {{ now().strftime('%Y-%m-%d %H:%M:%S') }}</div>
+
+{% for host in groups['managed'] %}
+{% set result = hostvars[host].get('disk_result') %}
+{% set rc = result.get('rc') if result else none %}
+<div class="host">
+  <div class="host-header">
+    <span>{{ host }}</span>
+    {% if rc != 0 %}<span class="status-error">unreachable / query failed</span>{% endif %}
+  </div>
+  {% if result is none %}
+  <div class="error-row">host was unreachable</div>
+  {% elif rc != 0 %}
+  <div class="error-row">{{ result.get('stderr') or result.get('msg') or 'no output' }}</div>
+  {% else %}
+  {% set disks = result.get('stdout', '') | trim | from_json %}
+  {% if disks %}
+  <table>
+    <tr><th>Drive</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th></tr>
+    {% for disk in disks %}
+    {% set total_gb = disk.get('TotalBytes', 0) / (1024 ** 3) %}
+    {% set free_gb = disk.get('FreeBytes', 0) / (1024 ** 3) %}
+    {% set used_gb = total_gb - free_gb %}
+    {% set pct = ((used_gb / total_gb) * 100) if total_gb > 0 else 0 %}
+    <tr>
+      <td>{{ disk.get('DeviceID') }}</td>
+      <td>{{ '%.1f' | format(total_gb) }} GB</td>
+      <td>{{ '%.1f' | format(used_gb) }} GB</td>
+      <td>{{ '%.1f' | format(free_gb) }} GB</td>
+      <td>
+        <div class="bar-wrap">
+          <div class="bar-track">
+            <div class="bar-fill{{ ' crit' if pct >= 90 else (' warn' if pct >= 75 else '') }}" style="width: {{ pct | round(0, 'floor') | int }}%;"></div>
+          </div>
+          <span class="pct">{{ '%.0f' | format(pct) }}%</span>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="error-row">No fixed disks reported.</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endfor %}
+
+</body>
+</html>

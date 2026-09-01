@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# ansible-runner artifacts
+.runner/
+
+# Public-key that hosts should trust
+bootstrap_access/authorized_keys
+
+# generated report
+disk_usage/report.html
