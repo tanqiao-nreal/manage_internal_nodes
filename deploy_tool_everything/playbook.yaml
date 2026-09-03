@@ -1,0 +1,146 @@
+- name: Deploy voidtools Everything to every managed host
+  hosts: managed
+  gather_facts: false
+  vars:
+    install_dir: 'C:\Program Files\Everything'
+    everything_exe: 'C:\Program Files\Everything\Everything.exe'
+    msi_filename: Everything-1.5.0.1422b.x64-Setup.msi
+    remote_msi_path: 'C:\Windows\Temp\{{ msi_filename }}'
+  tasks:
+    - name: Check whether Everything is already installed
+      ansible.windows.win_stat:
+        path: "{{ everything_exe }}"
+      register: everything_check
+
+    - name: Report hosts that already have Everything
+      ansible.builtin.debug:
+        msg: "Everything is already installed on {{ inventory_hostname }} - skipping."
+      when: everything_check.stat.exists
+
+    - name: Install and configure Everything
+      when: not everything_check.stat.exists
+      block:
+        - name: Copy the Everything MSI installer to the host
+          ansible.windows.win_copy:
+            src: "{{ playbook_dir }}/resource/{{ msi_filename }}"
+            dest: "{{ remote_msi_path }}"
+
+        - name: Install Everything
+          # No arguments passed: win_package always runs MSIs with
+          # /qn /log /norestart, and the MSI's own EVERYTHING_SERVICE and
+          # START_ON_STARTUP properties already default to 1 - the same
+          # autostart-on-bootup behavior an interactive install gives you.
+          ansible.windows.win_package:
+            path: "{{ remote_msi_path }}"
+            state: present
+
+        - name: Remove the staged MSI installer
+          ansible.windows.win_file:
+            path: "{{ remote_msi_path }}"
+            state: absent
+
+        - name: Copy the Everything plugins into the install directory
+          ansible.windows.win_copy:
+            src: "{{ playbook_dir }}/resource/plugins"
+            dest: "{{ install_dir }}\\"
+
+        - name: Copy es.exe into the install directory
+          ansible.windows.win_copy:
+            src: "{{ playbook_dir }}/resource/es.exe"
+            dest: "{{ install_dir }}\\es.exe"
+
+    - name: Resolve the connecting user's APPDATA path
+      ansible.windows.win_shell: Write-Output $env:APPDATA
+      changed_when: false
+      register: appdata_result
+
+    - name: Ensure the Everything settings directory exists
+      ansible.windows.win_file:
+        path: "{{ appdata_result.stdout | trim }}\\Everything"
+        state: directory
+
+    - name: Stop Everything before replacing its config
+      # Runs unconditionally (not just for fresh installs) so config
+      # changes (e.g. the HTTP server port below) reach already-deployed
+      # hosts too. Everything only reads Plugins.ini at startup, so the
+      # running (non -svc) instance is stopped first to guarantee the copy
+      # below can overwrite it and that the new config actually takes
+      # effect once relaunched further down.
+      ansible.windows.win_shell: |
+        Get-CimInstance Win32_Process -Filter "Name = 'Everything.exe'" |
+          Where-Object { $_.CommandLine -notmatch '-svc' } |
+          ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+      changed_when: false
+
+    - name: Copy Plugins.ini into the settings directory
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/resource/Plugins.ini"
+        dest: "{{ appdata_result.stdout | trim }}\\Everything\\Plugins.ini"
+
+    - name: Check whether Everything is running outside the background service
+      # EVERYTHING_SERVICE=1 always keeps a headless `Everything.exe -svc`
+      # running, but that one doesn't serve the HTTP API - only the normal
+      # (non -svc) instance, launched via START_ON_STARTUP or by hand, does.
+      # So process-name alone isn't enough; filter by command line instead.
+      ansible.windows.win_shell: |
+        $running = Get-CimInstance Win32_Process -Filter "Name = 'Everything.exe'" |
+          Where-Object { $_.CommandLine -notmatch '-svc' }
+        if ($running) { exit 0 } else { exit 1 }
+      register: everything_gui_running
+      changed_when: false
+      failed_when: false
+
+    - name: Remove any pre-existing launch task before recreating it
+      # Stale state from a previous run would otherwise make the create
+      # step below a no-op (nothing to change), which doesn't matter now
+      # that launching is a separate explicit step below, but keeps the
+      # task definition itself always freshly matching this run.
+      when: everything_gui_running.rc != 0
+      community.windows.win_scheduled_task:
+        name: EverythingLaunch
+        state: absent
+
+    - name: Register a Scheduled Task to launch Everything
+      # A process started directly over SSH lands in Session 0 (invisible)
+      # and is killed once the SSH connection closes (Win32-OpenSSH job
+      # object cleanup) - confirmed by testing. Starting it as a Scheduled
+      # Task instead sidesteps both: Task Scheduler is independent of the
+      # SSH job, and defaulting username/logon_type runs it under the
+      # current interactive token, in whichever session the target user is
+      # logged into.
+      when: everything_gui_running.rc != 0
+      community.windows.win_scheduled_task:
+        name: EverythingLaunch
+        description: Task used to launch Everything outside the deploying SSH session's job/session scope.
+        actions:
+          - path: "{{ everything_exe }}"
+        state: present
+        enabled: true
+
+    - name: Start the launch task
+      # No trigger is defined above - a `registration` trigger (fires once,
+      # immediately, on creation) looked like the natural fit, but it
+      # turned out to be unreliable in practice: confirmed on a real host
+      # where the task was created successfully yet Task Scheduler's own
+      # history showed it had never actually run. Explicitly starting the
+      # task is deterministic and was confirmed working on that same host.
+      when: everything_gui_running.rc != 0
+      ansible.windows.win_shell: Start-ScheduledTask -TaskName EverythingLaunch
+      failed_when: false
+
+    - name: Ensure Everything has an inbound firewall allow rule for all profiles
+      # Runs unconditionally (not gated on the install-skip above) so
+      # already-deployed hosts get this too. Without it, Everything's first
+      # attempt to bind the HTTP server pops the interactive "allow network
+      # access" prompt - nobody's there to click it on a headless host.
+      # Idempotent via a fixed rule -Name: if a rule with that exact Name
+      # already exists, this playbook already set it up correctly before.
+      ansible.windows.win_shell: |
+        if (Get-NetFirewallRule -Name 'Everything' -ErrorAction SilentlyContinue) {
+            exit 0
+        }
+        New-NetFirewallRule -Name 'Everything' -DisplayName 'Everything' -Direction Inbound -Program '{{ everything_exe }}' -Action Allow -Profile Any | Out-Null
+        exit 77
+      register: firewall_result
+      changed_when: firewall_result.rc == 77
+      failed_when: firewall_result.rc not in [0, 77]
