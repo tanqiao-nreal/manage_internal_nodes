@@ -11,6 +11,14 @@ Dependencies are managed with `uv`:
 uv sync
 ```
 
+[deploy_tool_everything/](deploy_tool_everything/) additionally needs the
+`ansible.windows` and `community.windows` collections (see
+[requirements.yml](requirements.yml)):
+
+```bash
+uv run ansible-galaxy collection install -r requirements.yml
+```
+
 [inventory.yaml](inventory.yaml) defines:
 - `jumphost` — `jump_admin`, the admin account (`xreal`) on the jump server
   (`10.32.9.14`) that sits in front of the managed hosts.
@@ -46,6 +54,13 @@ uv sync
   [bootstrap_access/README.md](bootstrap_access/README.md).
 - [disk_usage/](disk_usage/) — reports fixed-disk usage across every managed
   host as an HTML page; see [disk_usage/README.md](disk_usage/README.md).
+- [deploy_tool_everything/](deploy_tool_everything/) — installs and
+  configures [voidtools Everything](https://www.voidtools.com/) on every
+  managed host; see
+  [deploy_tool_everything/README.md](deploy_tool_everything/README.md).
+- [everything_proxy/](everything_proxy/) — puts an Nginx reverse proxy on
+  the jump server in front of every managed host's Everything HTTP server;
+  see [everything_proxy/README.md](everything_proxy/README.md).
 
 > **Caveat:** `playbook.yaml` and `main.py` predate `computes` becoming a real
 > (Windows) host and still assume a POSIX target (`ansible.builtin.script`

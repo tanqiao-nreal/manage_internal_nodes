@@ -24,10 +24,10 @@ managed:
     collectors:
       hosts:
         collector_2:
-          ansible_host: 10.32.3.89
+          ansible_host: 10.32.3.93
           ansible_user: user
         collector_3:
-          ansible_host: 10.32.3.91
+          ansible_host: 10.32.3.94
           ansible_user: user
         collector_4:
           ansible_host: 10.32.3.90
@@ -35,31 +35,61 @@ managed:
         collector_5:
           ansible_host: 10.32.6.5
           ansible_user: user
+        collector_6:
+          ansible_host: 10.32.3.83
+          ansible_user: user
+        collector_7:
+          ansible_host: 10.32.3.126
+          ansible_user: user
 
     # 计算站
     computes:
       hosts:
         compute_1:
-          ansible_host: 10.32.13.67
+          ansible_host: 10.32.3.81
           ansible_user: xreal
         compute_2:
           ansible_host: 10.32.3.92
           ansible_user: xreal
         compute_3:
-          ansible_host: 10.32.3.42
+          ansible_host: 10.32.3.77
           ansible_user: xreal
         compute_4:
-          ansible_host: 10.32.3.62
-          ansible_user: xreal
-        compute_6:
-          ansible_host: 10.32.3.4
-          ansible_user: xreal
-        compute_10:
-          ansible_host: 10.32.3.74
-          ansible_user: xreal
-        compute_14:
           ansible_host: 10.32.3.84
           ansible_user: xreal
+        compute_5:
+          ansible_host: 10.32.3.89
+          ansible_user: xreal
+        compute_6:
+          ansible_host: 10.32.3.74
+          ansible_user: xreal
+        compute_7:
+          ansible_host: 10.32.3.60
+          ansible_user: xreal
+        compute_8:
+          ansible_host: 10.32.3.39
+          ansible_user: xreal
+        compute_9:
+          ansible_host: 10.32.3.42
+          ansible_user: xreal
+        compute_10:
+          ansible_host: 10.32.3.62
+          ansible_user: xreal
+        compute_11:
+          ansible_host: 10.32.3.73
+          ansible_user: xreal
+        compute_12:
+          ansible_host: 10.32.3.91
+          ansible_user: xreal
+        compute_13:
+          ansible_host: 10.32.3.66
+          ansible_user: xreal
+        compute_14:
+          ansible_host: 10.32.3.86
+          ansible_user: xreal
+        compute_15:
+          ansible_host: 10.32.3.101
+          ansible_user: xreal
         compute_16:
-          ansible_host: 10.32.3.77
+          ansible_host: 10.32.3.87
           ansible_user: xreal
