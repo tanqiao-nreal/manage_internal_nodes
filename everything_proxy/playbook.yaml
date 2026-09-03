@@ -1,0 +1,88 @@
+- name: Deploy the unified Everything HTTP proxy on the jump server
+  hosts: jump_admin
+  gather_facts: false
+  vars_files:
+    - vault.yml
+  vars:
+    proxy_site_name: everything_proxy
+    static_dir: /var/www/everything_proxy
+  tasks:
+    - name: Generate the htpasswd hash for the proxy credential
+      # Piped over stdin rather than passed as an argument, so the
+      # plaintext password never appears in this host's process list.
+      ansible.builtin.command:
+        cmd: openssl passwd -apr1 -stdin
+        stdin: "{{ vault_everything_proxy_password }}"
+      register: htpasswd_hash
+      changed_when: false
+      no_log: true
+
+    - name: Write the htpasswd file
+      ansible.builtin.copy:
+        dest: /etc/nginx/.htpasswd
+        content: "{{ vault_everything_proxy_username }}:{{ htpasswd_hash.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      no_log: true
+      notify: reload nginx
+
+    - name: Ensure the static content directory exists
+      ansible.builtin.file:
+        path: "{{ static_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+
+    - name: Render the host-list HTML page
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: "{{ static_dir }}/index.html"
+      become: true
+      notify: reload nginx
+
+    - name: Render the host-list JSON page
+      ansible.builtin.template:
+        src: index.json.j2
+        dest: "{{ static_dir }}/index.json"
+      become: true
+      notify: reload nginx
+
+    - name: Render the Nginx site config
+      ansible.builtin.template:
+        src: nginx_everything_proxy.conf.j2
+        dest: "/etc/nginx/sites-available/{{ proxy_site_name }}"
+      become: true
+      notify: reload nginx
+
+    - name: Disable the stock default site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      become: true
+      notify: reload nginx
+
+    - name: Enable our site
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ proxy_site_name }}"
+        dest: "/etc/nginx/sites-enabled/{{ proxy_site_name }}"
+        state: link
+      become: true
+      notify: reload nginx
+
+  handlers:
+    - name: validate nginx config
+      ansible.builtin.command: nginx -t
+      become: true
+      changed_when: false
+      listen: reload nginx
+
+    - name: reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+      become: true
+      listen: reload nginx

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Everything servers</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0b0d12; color: #e6e6e6; padding: 2rem; max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; }
+  ul { line-height: 1.9; }
+  a { color: #4c8bf5; }
+</style>
+</head>
+<body>
+<h1>Everything servers</h1>
+<ul>
+{% for host in groups['managed'] %}
+  <li><a href="/{{ host }}/">{{ host }}</a> ({{ hostvars[host].ansible_host }})</li>
+{% endfor %}
+</ul>
+<p><a href="/?json=1">JSON</a></p>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# Managed by Ansible (everything_proxy/playbook.yaml) - do not edit by hand.
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    auth_basic "Everything Proxy";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location = / {
+        if ($arg_json) {
+            rewrite ^ /index.json last;
+        }
+        rewrite ^ /index.html last;
+    }
+
+    location = /index.html {
+        root {{ static_dir }};
+        default_type text/html;
+    }
+
+    location = /index.json {
+        root {{ static_dir }};
+        default_type application/json;
+    }
+
+{% for host in groups['managed'] %}
+    location = /{{ host }} {
+        return 301 /{{ host }}/;
+    }
+
+    location /{{ host }}/ {
+        proxy_pass http://{{ hostvars[host].ansible_host }}:50000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # File downloads (including multi-GB tarballs created for folder
+        # downloads) shouldn't be buffered to disk/memory on the jump
+        # server before being forwarded, and buffering off is required
+        # for Range requests to pass through so large downloads are
+        # resumable instead of restarting from byte 0 on a drop.
+        proxy_buffering off;
+
+        # Everything's HTML/CSS reference everything as root-absolute
+        # paths (href="/C%3A", src="/Everything.gif", action="/", ...)
+        # since it has no idea it's being served under a path prefix.
+        # Rewrite those in-flight so links/assets/the search form all
+        # keep pointing back through this same host's prefix.
+        sub_filter_once off;
+        sub_filter_types text/html text/css;
+        sub_filter '="/' '="/{{ host }}/';
+    }
+{% endfor %}
+}

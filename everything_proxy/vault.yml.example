@@ -1,0 +1,9 @@
+---
+# This is a plaintext reference, not the real secret file. Create the real
+# one (vault.yml, encrypted, safe to commit) with:
+#
+#   uv run ansible-vault create everything_proxy/vault.yml
+#
+# then paste in real values for the two vars below.
+vault_everything_proxy_username: admin
+vault_everything_proxy_password: change-me

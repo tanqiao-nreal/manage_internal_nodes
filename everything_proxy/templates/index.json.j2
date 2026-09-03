@@ -1,0 +1,5 @@
+{%- set entries = [] -%}
+{%- for host in groups['managed'] -%}
+{%- set _ = entries.append({'host': host, 'ip': hostvars[host].ansible_host, 'user': hostvars[host].ansible_user, 'url': '/' + host + '/'}) -%}
+{%- endfor -%}
+{{ entries | to_nice_json }}
