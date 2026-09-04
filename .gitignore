@@ -17,3 +17,5 @@ bootstrap_access/authorized_keys
 
 # generated report
 disk_usage/report.html
+
+everything_proxy/vault.yml
