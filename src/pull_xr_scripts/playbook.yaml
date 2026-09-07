@@ -1,0 +1,43 @@
+- name: Pull XR glasses scripts from every collector
+  hosts: collectors
+  gather_facts: false
+  vars:
+    remote_scripts_dir: 'C:\Users\User\Desktop\xreal_glasses_scripts'
+    remote_archive_path: 'C:\Windows\Temp\xreal_glasses_scripts.tar'
+    output_dir: "{{ playbook_dir }}/../../output/xreal_glasses_scripts/{{ inventory_hostname }}"
+    local_archive_path: "{{ playbook_dir }}/../../output/xreal_glasses_scripts/{{ inventory_hostname }}.tar"
+  tasks:
+    - name: Archive the *.py scripts into a single file on the host
+      ansible.windows.win_shell: tar -cf "{{ remote_archive_path }}" *.py
+      args:
+        chdir: "{{ remote_scripts_dir }}"
+
+    - name: Ensure the local output directory exists
+      ansible.builtin.file:
+        path: "{{ output_dir }}"
+        state: directory
+      delegate_to: localhost
+
+    - name: Fetch the archive back to the control node
+      ansible.builtin.fetch:
+        src: "{{ remote_archive_path }}"
+        dest: "{{ local_archive_path }}"
+        flat: true
+
+    - name: Remove the archive from the host
+      ansible.windows.win_file:
+        path: "{{ remote_archive_path }}"
+        state: absent
+
+    - name: Extract the scripts from the archive
+      ansible.builtin.unarchive:
+        src: "{{ local_archive_path }}"
+        dest: "{{ output_dir }}"
+        remote_src: false
+      delegate_to: localhost
+
+    - name: Remove the staged local archive
+      ansible.builtin.file:
+        path: "{{ local_archive_path }}"
+        state: absent
+      delegate_to: localhost

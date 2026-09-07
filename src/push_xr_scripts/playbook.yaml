@@ -1,0 +1,69 @@
+- name: Push XR glasses scripts to every collector
+  hosts: collectors
+  gather_facts: false
+  vars:
+    remote_scripts_dir: 'C:\Users\User\Desktop\xreal_glasses_scripts'
+    remote_backup_dir: '{{ remote_scripts_dir }}\backup\{{ push_run_timestamp }}'
+    remote_push_archive_path: 'C:\Windows\Temp\xreal_glasses_scripts_push.tar'
+    local_scripts_dir: "{{ playbook_dir }}/../../input/xreal_glasses_scripts"
+    local_push_archive_path: "{{ playbook_dir }}/../../input/xreal_glasses_scripts.tar"
+  tasks:
+    - name: Record this run's backup timestamp
+      ansible.builtin.set_fact:
+        push_run_timestamp: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
+
+    - name: Build the push archive from the local scripts
+      # Needs ansible.builtin.shell, not command: *.py only expands to the
+      # matching filenames when a shell processes it
+      ansible.builtin.shell: tar -cf "{{ local_push_archive_path }}" *.py
+      args:
+        chdir: "{{ local_scripts_dir }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Push the archive to the host
+      ansible.windows.win_copy:
+        src: "{{ local_push_archive_path }}"
+        dest: "{{ remote_push_archive_path }}"
+
+    - name: Ensure the remote scripts directory exists
+      ansible.windows.win_file:
+        path: "{{ remote_scripts_dir }}"
+        state: directory
+
+    - name: Find the scripts currently on the host
+      # Non-recursive, so this only ever sees the top-level *.py files,
+      # never anything already sitting in backup/ from a previous run.
+      ansible.windows.win_find:
+        paths: "{{ remote_scripts_dir }}"
+        patterns: "*.py"
+      register: existing_scripts
+
+    - name: Create this run's backup directory on the host
+      ansible.windows.win_file:
+        path: "{{ remote_backup_dir }}"
+        state: directory
+      when: existing_scripts.matched > 0
+
+    - name: Move the existing scripts into the backup directory
+      ansible.windows.win_shell: Move-Item -Path *.py -Destination "{{ remote_backup_dir }}"
+      args:
+        chdir: "{{ remote_scripts_dir }}"
+      when: existing_scripts.matched > 0
+
+    - name: Extract the pushed archive into the scripts directory
+      ansible.windows.win_shell: tar -xf "{{ remote_push_archive_path }}"
+      args:
+        chdir: "{{ remote_scripts_dir }}"
+
+    - name: Remove the pushed archive from the host
+      ansible.windows.win_file:
+        path: "{{ remote_push_archive_path }}"
+        state: absent
+
+    - name: Remove the local push archive
+      ansible.builtin.file:
+        path: "{{ local_push_archive_path }}"
+        state: absent
+      delegate_to: localhost
+      run_once: true

@@ -65,6 +65,13 @@ uv run ansible-galaxy collection install -r requirements.yml
   proxy on the jump server in front of every managed host's Everything HTTP
   server; see
   [src/everything_proxy/README.md](src/everything_proxy/README.md).
+- [src/pull_xr_scripts/](src/pull_xr_scripts/) — pulls the XR glasses
+  `*.py` scripts off every collector into `output/`; see
+  [src/pull_xr_scripts/README.md](src/pull_xr_scripts/README.md).
+- [src/push_xr_scripts/](src/push_xr_scripts/) — pushes a local set of XR
+  glasses scripts out to every collector, backing up what's replaced
+  on-host; see
+  [src/push_xr_scripts/README.md](src/push_xr_scripts/README.md).
 
 > **Caveat:** `playbook.yaml` and `main.py` predate `computes` becoming a real
 > (Windows) host and still assume a POSIX target (`ansible.builtin.script`
