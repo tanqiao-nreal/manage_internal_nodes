@@ -13,9 +13,12 @@ wheels/
 .runner/
 
 # Public-key that hosts should trust
-bootstrap_access/authorized_keys
+src/bootstrap_access/authorized_keys
 
 # generated report
-disk_usage/report.html
+src/disk_usage/report.html
 
-everything_proxy/vault.yml
+src/everything_proxy/vault.yml
+
+input
+output

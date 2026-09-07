@@ -11,7 +11,7 @@ Dependencies are managed with `uv`:
 uv sync
 ```
 
-[deploy_tool_everything/](deploy_tool_everything/) additionally needs the
+[src/deploy_tool_everything/](src/deploy_tool_everything/) additionally needs the
 `ansible.windows` and `community.windows` collections (see
 [requirements.yml](requirements.yml)):
 
@@ -19,7 +19,7 @@ uv sync
 uv run ansible-galaxy collection install -r requirements.yml
 ```
 
-[inventory.yaml](inventory.yaml) defines:
+[src/inventory.yaml](src/inventory.yaml) defines:
 - `jumphost` — `jump_admin`, the admin account (`xreal`) on the jump server
   (`10.32.9.14`) that sits in front of the managed hosts.
 - `managed` — a parent group (all Windows hosts) reached through a
@@ -32,35 +32,39 @@ uv run ansible-galaxy collection install -r requirements.yml
   use PowerShell syntax for the shell-level plumbing `ansible.builtin`
   modules need (remote temp dirs, etc.) — without it, modules like
   `ansible.builtin.script`/`command`/`copy` don't work against these hosts
-  at all (see [disk_usage/](disk_usage/) below for a module-based playbook
-  that relies on this).
+  at all (see [src/disk_usage/](src/disk_usage/) below for a module-based
+  playbook that relies on this).
 
 ## Files
 
-- [inventory.yaml](inventory.yaml) — the `jumphost`/`managed` inventory
-  described above.
-- [playbook.yaml](playbook.yaml) — pings `computes` and runs [test.py](test.py)
-  via the `ansible.builtin.script` module, printing its stdout. This
-  currently assumes a POSIX target; see the caveat below.
-- [test.bash](test.bash) / [test.py](test.py) — dummy scripts that just print
-  a line of output, used to exercise the run-and-collect workflow.
-- [main.py](main.py) — runs local scripts on the inventory hosts via
-  `ansible_runner` (no playbook needed) and collects their output for
-  programmatic use.
-- [scripts/](scripts/) — small helper scripts shared across the playbooks
-  below (currently just `encode_ps_command.py`).
-- [bootstrap_access/](bootstrap_access/) — bootstraps SSH access through the
-  jump host onto the managed hosts; see
-  [bootstrap_access/README.md](bootstrap_access/README.md).
-- [disk_usage/](disk_usage/) — reports fixed-disk usage across every managed
-  host as an HTML page; see [disk_usage/README.md](disk_usage/README.md).
-- [deploy_tool_everything/](deploy_tool_everything/) — installs and
+- [src/inventory.yaml](src/inventory.yaml) — the `jumphost`/`managed`
+  inventory described above.
+- [src/hello_world/playbook.yaml](src/hello_world/playbook.yaml) — pings
+  `computes` and runs [test.py](src/hello_world/test.py) via the
+  `ansible.builtin.script` module, printing its stdout. This currently
+  assumes a POSIX target; see the caveat below.
+- [test.bash](src/hello_world/test.bash) / [test.py](src/hello_world/test.py) —
+  dummy scripts that just print a line of output, used to exercise the
+  run-and-collect workflow.
+- [main.py](src/hello_world/main.py) — runs local scripts on the inventory
+  hosts via `ansible_runner` (no playbook needed) and collects their output
+  for programmatic use.
+- [src/scripts/](src/scripts/) — small helper scripts shared across the
+  playbooks below (currently just `encode_ps_command.py`).
+- [src/bootstrap_access/](src/bootstrap_access/) — bootstraps SSH access
+  through the jump host onto the managed hosts; see
+  [src/bootstrap_access/README.md](src/bootstrap_access/README.md).
+- [src/disk_usage/](src/disk_usage/) — reports fixed-disk usage across
+  every managed host as an HTML page; see
+  [src/disk_usage/README.md](src/disk_usage/README.md).
+- [src/deploy_tool_everything/](src/deploy_tool_everything/) — installs and
   configures [voidtools Everything](https://www.voidtools.com/) on every
   managed host; see
-  [deploy_tool_everything/README.md](deploy_tool_everything/README.md).
-- [everything_proxy/](everything_proxy/) — puts an Nginx reverse proxy on
-  the jump server in front of every managed host's Everything HTTP server;
-  see [everything_proxy/README.md](everything_proxy/README.md).
+  [src/deploy_tool_everything/README.md](src/deploy_tool_everything/README.md).
+- [src/everything_proxy/](src/everything_proxy/) — puts an Nginx reverse
+  proxy on the jump server in front of every managed host's Everything HTTP
+  server; see
+  [src/everything_proxy/README.md](src/everything_proxy/README.md).
 
 > **Caveat:** `playbook.yaml` and `main.py` predate `computes` becoming a real
 > (Windows) host and still assume a POSIX target (`ansible.builtin.script`
@@ -74,7 +78,7 @@ uv run ansible-galaxy collection install -r requirements.yml
 ## Running the playbook directly
 
 ```bash
-uv run ansible-playbook -i inventory.yaml playbook.yaml
+uv run ansible-playbook -i src/inventory.yaml src/hello_world/playbook.yaml
 ```
 
 ## Running scripts from Python
@@ -84,7 +88,7 @@ local script on the matched hosts and parses the run's events into
 `ScriptResult` objects (`host`, `script`, `rc`, `stdout`, `stderr`):
 
 ```bash
-uv run python main.py
+uv run python src/hello_world/main.py
 ```
 
 `run_scripts()` runs a list of scripts and returns a combined `RunReport`.

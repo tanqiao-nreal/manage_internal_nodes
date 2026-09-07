@@ -31,7 +31,7 @@ class RunReport:
 def run_script(
     script_path: str,
     host_pattern: str = "computes",
-    inventory: str = "inventory.yaml",
+    inventory: str = "../inventory.yaml",
     executable: str | None = None,
 ) -> RunReport:
     """Run a single local script on the matched hosts via the ansible script module."""
@@ -70,7 +70,7 @@ def run_script(
 def run_scripts(
     script_paths: list[str],
     host_pattern: str = "computes",
-    inventory: str = "inventory.yaml",
+    inventory: str = "../inventory.yaml",
     executables: dict[str, str] | None = None,
 ) -> RunReport:
     """Run multiple local scripts on the matched hosts and combine the results."""
