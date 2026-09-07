@@ -18,8 +18,9 @@ PowerShell `ConvertFrom-Json` error on this connection setup — confirmed
 against a real host, not assumed). The `ansible.windows` collection's
 modules (`win_copy`, `win_package`, `win_shell`, `win_stat`) don't share
 that wrapper and were verified working against a real host before this
-playbook was built around them. The launch step additionally uses
-`community.windows.win_scheduled_task` (see below) — see
+playbook was built around them. The imported launch play additionally uses
+`community.windows.win_scheduled_task` (see
+[../launch_tool_everything/README.md](../launch_tool_everything/)) — see
 [requirements.yml](../requirements.yml) for both collections.
 
 ## Files
@@ -35,10 +36,13 @@ playbook was built around them. The launch step additionally uses
   copies `plugins/` and `es.exe` into the install directory. From there,
   the rest runs unconditionally on every host, install-skipped or not:
   resolving the connecting user's `%APPDATA%`, stopping Everything if it's
-  running and copying `Plugins.ini` there (see below), launching
-  `Everything.exe` if it isn't already running, and ensuring an inbound
-  firewall allow rule for it across all profiles (Domain/Private/Public) —
-  see further below for why.
+  running and copying `Plugins.ini` there (see below), and ensuring an
+  inbound firewall allow rule for it across all profiles
+  (Domain/Private/Public) — see further below for why. It ends by importing
+  [../launch_tool_everything/playbook.yaml](../launch_tool_everything/)
+  as a second play, which launches `Everything.exe` if it isn't already
+  running — see that playbook's own README for why launching it is its own
+  playbook rather than inline tasks here.
 
 ## Why there's no separate "register autostart" step
 
@@ -55,9 +59,10 @@ instead of Everything's default `80`, since 80 isn't free on every host.
 Everything only reads `Plugins.ini` at startup, and re-copying it onto an
 already-running instance wouldn't take effect (or might not even be
 possible — the file could be open). So before the copy, the playbook stops
-any running non-`-svc` `Everything.exe` (see below for why `-svc` is
-excluded); the existing "launch if not running" step further down then
-relaunches it, picking up the new config. This runs on every playbook run,
+any running non-`-svc` `Everything.exe` (see
+[../launch_tool_everything/README.md](../launch_tool_everything/) for why
+`-svc` is excluded); the imported launch play at the end of this playbook
+then relaunches it, picking up the new config. This runs on every playbook run,
 not just when the config actually changed — a minor cost (a few seconds of
 downtime) in exchange for staying simple.
 
@@ -65,48 +70,6 @@ downtime) in exchange for staying simple.
 (`nginx_everything_proxy.conf.j2`'s `proxy_pass`) — the two are not
 derived from one shared variable, so if this port ever changes again, that
 file needs updating too.
-
-## A caveat on "launch Everything"
-
-`EVERYTHING_SERVICE=1` always keeps a headless `Everything.exe -svc`
-running, but that instance doesn't serve the HTTP API — only a normal
-(non-`-svc`) instance does. So the playbook checks for an `Everything.exe`
-process whose command line *doesn't* contain `-svc` (via `Get-CimInstance
-Win32_Process`, filtered on `CommandLine`) before deciding whether to
-launch — this runs unconditionally, so a host that already had Everything
-installed but isn't currently running it (e.g. after a reboot with no
-logon yet) gets launched too, not just freshly-installed ones.
-
-A process launched directly over SSH (`Start-Process`) has two problems,
-both confirmed against a real host: it lands in Session 0, invisible to
-whoever's logged in interactively, *and* it gets killed the moment the SSH
-connection closes — Win32-OpenSSH ties every child process to a Job Object
-scoped to that connection, which is torn down (along with everything under
-it) as soon as the connection ends.
-
-The playbook instead runs it via a `community.windows.win_scheduled_task`
-with no `username`/`logon_type` set, which defaults to running under the
-current interactive token — i.e. whichever session the target user is
-actually logged into. Task Scheduler is an independent service, so the
-process it starts is neither tied to the SSH job (survives disconnect) nor
-stuck in Session 0. Confirmed against a real host: the launched process
-lands in the logged-in user's session and keeps running after the SSH
-connection closes.
-
-The task is (re)created fresh on every launch (deleted first, if it
-already exists, then recreated) rather than left alone when unchanged —
-otherwise the second run of this pattern is a no-op from
-`win_scheduled_task`'s point of view, and there'd be nothing to actually
-start. It's started with an explicit `Start-ScheduledTask` call rather
-than a `registration` trigger (fires once, immediately, on creation) —
-that looked like the natural way to avoid a separate "run now" step, but
-turned out to be unreliable: confirmed on a real host where the task was
-created successfully (correct action, correct user) yet Task Scheduler's
-own history showed it had never actually run, while `Start-ScheduledTask`
-against that same task worked immediately. The step still runs
-best-effort (`failed_when: false`) since `START_ON_STARTUP` already
-guarantees Everything will be running and visible the next time someone
-logs into the host regardless.
 
 ## Firewall
 

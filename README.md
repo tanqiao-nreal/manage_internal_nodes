@@ -61,6 +61,11 @@ uv run ansible-galaxy collection install -r requirements.yml
   configures [voidtools Everything](https://www.voidtools.com/) on every
   managed host; see
   [src/deploy_tool_everything/README.md](src/deploy_tool_everything/README.md).
+- [src/launch_tool_everything/](src/launch_tool_everything/) — launches
+  Everything on every managed host if it isn't already running (e.g. after
+  someone closes the window by hand); also imported as the last play of
+  `deploy_tool_everything`'s own playbook, see
+  [src/launch_tool_everything/README.md](src/launch_tool_everything/README.md).
 - [src/everything_proxy/](src/everything_proxy/) — puts an Nginx reverse
   proxy on the jump server in front of every managed host's Everything HTTP
   server; see
