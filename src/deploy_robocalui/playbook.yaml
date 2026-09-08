@@ -1,0 +1,104 @@
+- name: Deploy robocalui to every managed host
+  hosts: managed
+  gather_facts: false
+  vars:
+    local_robocalui_dir: "{{ playbook_dir }}/../../input/robocalui"
+    local_exe_matches: "{{ query('ansible.builtin.fileglob', local_robocalui_dir + '/robocalui_*.exe') }}"
+    local_exe_path: "{{ local_exe_matches[0] }}"
+    exe_filename: "{{ local_exe_path | basename }}"
+  tasks:
+    - name: Ensure exactly one robocalui EXE is staged locally
+      # The version in the filename varies between releases, so the exact
+      # name is discovered via glob rather than hardcoded - this just
+      # guards against input/robocalui/ being empty or holding more than
+      # one candidate, either of which would make the push below ambiguous.
+      ansible.builtin.assert:
+        that:
+          - local_exe_matches | length == 1
+        fail_msg: >-
+          Expected exactly one robocalui_*.exe in {{ local_robocalui_dir }},
+          found {{ local_exe_matches | length }}.
+      delegate_to: localhost
+      run_once: true
+
+    - name: Resolve the connecting user's Desktop path
+      # Desktop lives under a different username per host (User vs xreal -
+      # see inventory.yaml) - resolving $env:USERPROFILE dynamically avoids
+      # hardcoding either, same reasoning as deploy_tool_everything's
+      # %APPDATA% resolution.
+      ansible.windows.win_shell: Write-Output $env:USERPROFILE
+      changed_when: false
+      register: userprofile_result
+
+    - name: Set the remote Desktop and temp directory facts
+      ansible.builtin.set_fact:
+        remote_desktop_dir: "{{ userprofile_result.stdout | trim }}\\Desktop"
+        remote_temp_exe_path: "{{ userprofile_result.stdout | trim }}\\AppData\\Local\\Temp\\{{ exe_filename }}"
+
+    - name: Push the robocalui EXE to a temp location
+      ansible.windows.win_copy:
+        src: "{{ local_exe_path }}"
+        dest: "{{ remote_temp_exe_path }}"
+
+    - name: Stop robocalui if it's currently running
+      ansible.windows.win_shell: |
+        $running = Get-Process -Name 'robocalui_*' -ErrorAction SilentlyContinue
+        if ($running) {
+          $running | Stop-Process -Force
+          Write-Output "stopped"
+        } else {
+          Write-Output "not running"
+        }
+      register: stop_result
+      changed_when: "'stopped' in stop_result.stdout"
+
+    - name: Find existing robocalui EXE(s) on the Desktop
+      ansible.windows.win_find:
+        paths: "{{ remote_desktop_dir }}"
+        patterns: "robocalui_*.exe"
+      register: existing_exe
+
+    - name: Report the existing robocalui EXE(s) being replaced
+      ansible.builtin.debug:
+        msg: "{{ 'Upgrading from: ' + (existing_exe.files | map(attribute='filename') | join(', ')) if existing_exe.matched > 0 else 'No existing robocalui EXE found on the Desktop - deploying ' + exe_filename + ' fresh.' }}"
+
+    - name: Move existing robocalui EXE(s) to the Recycle Bin
+      # Empty existing_exe.files (nothing to replace) just means zero loop
+      # iterations here - the rest of the playbook runs unchanged either way.
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/recycle_file.ps1 \"{{ item.path }}\""
+        executable: "powershell -NoProfile -NonInteractive -File"
+      loop: "{{ existing_exe.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Move the pushed robocalui EXE from the temp location to the Desktop
+      ansible.windows.win_shell: Move-Item -Path "{{ remote_temp_exe_path }}" -Destination "{{ remote_desktop_dir }}\{{ exe_filename }}" -Force
+
+    - name: Remove any pre-existing launch task before recreating it
+      # Recreated fresh every run so the task's target path always matches
+      # this run's (possibly new) exe_filename - see
+      # launch_tool_everything/README.md for why deleting first rather than
+      # leaving a stale task alone.
+      community.windows.win_scheduled_task:
+        name: RobocaluiLaunch
+        state: absent
+
+    - name: Register a Scheduled Task to launch robocalui
+      # Same reasoning as launch_tool_everything: a GUI process started
+      # directly over SSH lands in the invisible Session 0 and dies with
+      # the SSH connection. Defaulting username/logon_type runs it under
+      # the current interactive token instead, in whichever session the
+      # logged-in user actually is.
+      community.windows.win_scheduled_task:
+        name: RobocaluiLaunch
+        description: Task used to launch robocalui outside the deploying SSH session's job/session scope.
+        actions:
+          - path: "{{ remote_desktop_dir }}\\{{ exe_filename }}"
+            working_directory: "{{ remote_desktop_dir }}"
+        state: present
+        enabled: true
+
+    - name: Start the launch task
+      ansible.windows.win_shell: Start-ScheduledTask -TaskName RobocaluiLaunch
+      failed_when: false

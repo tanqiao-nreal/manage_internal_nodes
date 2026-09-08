@@ -77,6 +77,10 @@ uv run ansible-galaxy collection install -r requirements.yml
   glasses scripts out to every collector, backing up what's replaced
   on-host; see
   [src/push_xr_scripts/README.md](src/push_xr_scripts/README.md).
+- [src/deploy_robocalui/](src/deploy_robocalui/) — pushes `robocalui_*.exe`
+  to the Desktop of every managed host, recycling what's replaced and
+  (re)launching it; see
+  [src/deploy_robocalui/README.md](src/deploy_robocalui/README.md).
 
 > **Caveat:** `playbook.yaml` and `main.py` predate `computes` becoming a real
 > (Windows) host and still assume a POSIX target (`ansible.builtin.script`
