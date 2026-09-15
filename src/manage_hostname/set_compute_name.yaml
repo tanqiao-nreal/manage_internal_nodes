@@ -1,0 +1,75 @@
+- name: Load and validate the desired names
+  hosts: localhost
+  gather_facts: false
+  vars:
+    new_name_csv_path: "{{ playbook_dir }}/../../input/compute_name/new_name.csv"
+  tasks:
+    - name: Read the desired names from CSV
+      community.general.read_csv:
+        path: "{{ new_name_csv_path }}"
+      register: new_name_csv
+
+    - name: Build the inventory_hostname -> new_name map
+      ansible.builtin.set_fact:
+        new_name_map: "{{ new_name_csv.list | items2dict(key_name='inventory_hostname', value_name='new_name') }}"
+
+    - name: Compute hosts missing from the CSV, and extra CSV rows not in inventory
+      ansible.builtin.set_fact:
+        hosts_missing_from_csv: "{{ groups['computes'] | difference(new_name_map.keys() | list) }}"
+        extra_rows_in_csv: "{{ new_name_map.keys() | list | difference(groups['computes']) }}"
+
+    - name: Fail if the CSV and the computes group don't match exactly
+      ansible.builtin.fail:
+        msg: >-
+          new_name.csv doesn't match the computes inventory group.
+          {% if hosts_missing_from_csv %}Missing from CSV: {{ hosts_missing_from_csv | join(', ') }}.{% endif %}
+          {% if extra_rows_in_csv %} Extra rows in CSV not in inventory: {{ extra_rows_in_csv | join(', ') }}.{% endif %}
+      when: (hosts_missing_from_csv | length > 0) or (extra_rows_in_csv | length > 0)
+
+- name: Apply the new machine name to every compute node
+  hosts: computes
+  gather_facts: false
+  vars:
+    desired_name: "{{ hostvars['localhost'].new_name_map[inventory_hostname] }}"
+  tasks:
+    - name: Set the machine name
+      # ignore_errors (not failed_when: false) so the registered result keeps
+      # the module's real failed/changed/reboot_required values - a later
+      # summary task needs those to tell success from failure.
+      ansible.windows.win_hostname:
+        name: "{{ desired_name }}"
+      register: rename_result
+      ignore_errors: true
+
+- name: Summarize the run
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Build a per-host rename summary
+      ansible.builtin.set_fact:
+        rename_summary: "{{ rename_summary | default([]) + [{
+          'host': item,
+          'reachable': 'rename_result' in hostvars[item],
+          'changed': hostvars[item].get('rename_result', {}).get('changed', false),
+          'reboot_required': hostvars[item].get('rename_result', {}).get('reboot_required', false),
+          'failed': hostvars[item].get('rename_result', {}).get('failed', false),
+          } ] }}"
+      loop: "{{ groups['computes'] }}"
+
+    - name: List hosts renamed and still awaiting a manual reboot
+      ansible.builtin.debug:
+        msg: >-
+          Hosts renamed - reboot manually to fully apply the new name:
+          {{ rename_summary | selectattr('changed') | selectattr('reboot_required') | map(attribute='host') | list }}
+
+    - name: List hosts that failed to rename
+      ansible.builtin.debug:
+        msg: >-
+          Hosts that failed to rename:
+          {{ rename_summary | selectattr('failed') | map(attribute='host') | list }}
+
+    - name: List hosts that were unreachable
+      ansible.builtin.debug:
+        msg: >-
+          Hosts that were unreachable (not renamed, retry separately):
+          {{ rename_summary | rejectattr('reachable') | map(attribute='host') | list }}

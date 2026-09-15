@@ -1,0 +1,13 @@
+inventory_hostname,ansible_host,machine_name
+{% for host in groups['computes'] -%}
+{% set result = hostvars[host].get('hostname_result') %}
+{% set rc = result.get('rc') if result else none %}
+{% if result is none -%}
+{% set machine_name = 'ERROR: host was unreachable' %}
+{% elif rc != 0 -%}
+{% set machine_name = 'ERROR: ' ~ (result.get('stderr') or result.get('msg') or 'no output') %}
+{% else -%}
+{% set machine_name = result.get('stdout', '') | trim %}
+{% endif -%}
+"{{ host }}","{{ hostvars[host].get('ansible_host', '') }}","{{ machine_name | replace('"', '""') }}"
+{% endfor -%}
