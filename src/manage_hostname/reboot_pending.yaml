@@ -1,0 +1,58 @@
+- name: Detect compute nodes with a pending reboot, and optionally reboot them
+  hosts: computes
+  gather_facts: false
+  vars:
+    # Report-only by default. Pass -e do_reboot=true to actually reboot.
+    do_reboot: false
+  tasks:
+    - name: Check the usual Windows pending-reboot markers
+      # The script prints a JSON array of reasons ([] when nothing is pending).
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/get_pending_reboot.ps1"
+        executable: "powershell -NoProfile -NonInteractive -File"
+      register: pending_check
+      changed_when: false
+
+    - name: Record the reasons for this host
+      ansible.builtin.set_fact:
+        reboot_reasons: "{{ pending_check.stdout | from_json }}"
+
+    - name: Reboot hosts that have a pending reboot
+      ansible.windows.win_reboot:
+        reboot_timeout: 900
+      when:
+        - do_reboot | bool
+        - reboot_reasons | length > 0
+      register: reboot_result
+      ignore_errors: true
+
+- name: Summarize the run
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Build a per-host summary
+      ansible.builtin.set_fact:
+        reboot_summary: "{{ reboot_summary | default([]) + [{
+          'host': item,
+          'reachable': 'reboot_reasons' in hostvars[item],
+          'reasons': hostvars[item].get('reboot_reasons', []),
+          'rebooted': hostvars[item].get('reboot_result', {}).get('rebooted', false),
+          'reboot_failed': hostvars[item].get('reboot_result', {}).get('failed', false),
+          } ] }}"
+      loop: "{{ groups['computes'] }}"
+
+    - name: Show hosts with a pending reboot
+      ansible.builtin.debug:
+        msg: >-
+          Pending reboot ({{ 'rebooted' if do_reboot | default(false) | bool else 'not rebooted - pass -e do_reboot=true' }}):
+          {{ dict(pending | map(attribute='host') | zip(pending | map(attribute='reasons'))) }}
+      vars:
+        pending: "{{ reboot_summary | selectattr('reasons') | list }}"
+
+    - name: Show hosts whose reboot failed
+      ansible.builtin.debug:
+        msg: "Reboot failed: {{ reboot_summary | selectattr('reboot_failed') | map(attribute='host') | list }}"
+
+    - name: Show hosts that were unreachable
+      ansible.builtin.debug:
+        msg: "Unreachable (not checked): {{ reboot_summary | rejectattr('reachable') | map(attribute='host') | list }}"

@@ -33,6 +33,18 @@ from a CSV.
   automatically was judged too risky to do unattended. The final summary
   lists which hosts were renamed and still need a manual reboot, which
   failed to rename, and which were unreachable.
+- [reboot_pending.yaml](reboot_pending.yaml) — runs
+  [get_pending_reboot.ps1](get_pending_reboot.ps1) on each `computes` host
+  to find pending reboots (CBS, Windows Update, pending file renames, or an
+  active-vs-pending computer name mismatch from a rename). Report-only by
+  default; pass `-e do_reboot=true` to reboot the hosts that need it (via
+  `ansible.windows.win_reboot`, waits up to 15 min per host). Note
+  `PendingFileRename` is noisy: installers/updaters such as Chrome or VPN
+  agents commonly leave entries there, so it can flag a host that doesn't
+  really need a restart.
+- [get_pending_reboot.ps1](get_pending_reboot.ps1) — prints the pending
+  reasons as a JSON array (`[]` when none), same style as
+  [disk_usage/get_disk_usage.ps1](../disk_usage/get_disk_usage.ps1).
 
 ## Usage
 
@@ -48,4 +60,12 @@ uv run ansible-playbook -i src/inventory.yaml src/manage_hostname/set_compute_na
 
 `input/compute_name/new_name.csv` must have exactly one row per host in the
 `computes` group — no missing hosts, no extra rows. After a successful run,
-manually reboot any host the summary lists as needing one.
+reboot any host the summary lists as needing one, either manually or with:
+
+```bash
+# See which hosts have a pending reboot (no changes)
+uv run ansible-playbook -i src/inventory.yaml src/manage_hostname/reboot_pending.yaml
+
+# Reboot them
+uv run ansible-playbook -i src/inventory.yaml src/manage_hostname/reboot_pending.yaml -e do_reboot=true
+```
