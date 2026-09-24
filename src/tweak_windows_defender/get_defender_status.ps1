@@ -1,5 +1,5 @@
 # Reports Windows Defender's state as a single JSON object:
-# {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": true, "ExclusionPath": [...]}
+# {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": true, "IsTamperProtected": true, "ExclusionPath": [...]}
 #
 # ExclusionPath is wrapped in @() so ConvertTo-Json always emits an array -
 # a single exclusion would otherwise collapse to a bare string, and none to
@@ -14,5 +14,6 @@ $status = Get-MpComputerStatus
 [pscustomobject]@{
     AMRunningMode             = $status.AMRunningMode
     RealTimeProtectionEnabled = $status.RealTimeProtectionEnabled
+    IsTamperProtected         = $status.IsTamperProtected
     ExclusionPath             = @((Get-MpPreference).ExclusionPath | Where-Object { $_ })
 } | ConvertTo-Json -Compress
