@@ -78,3 +78,6 @@ Each host ends up with only the newly pushed EXE on its Desktop (the
 previous one, if any, went to that host's Recycle Bin rather than being
 deleted outright) and a running instance of it, launched via the
 `RobocaluiLaunch` scheduled task.
+
+To run the deploy unattended at a set time (e.g. overnight), see
+[scheduled_deploy.md](scheduled_deploy.md).
