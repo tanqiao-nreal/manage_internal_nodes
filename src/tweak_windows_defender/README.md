@@ -1,7 +1,7 @@
 # tweak_windows_defender
 
-Two playbooks for inspecting and extending Windows Defender's exclusion
-list across every host in `managed`.
+Playbooks for inspecting, extending and trimming Windows Defender's
+exclusion list across every host in `managed`.
 
 ## Files
 
@@ -31,10 +31,20 @@ list across every host in `managed`.
   per-user path like `%USERPROFILE%\Desktop\logs` resolves to each host's
   own profile even though usernames differ between hosts (see
   `inventory.yaml`).
+- [remove_exclusion_path.yaml](remove_exclusion_path.yaml) — the
+  counterpart: reads the same `exclusion_path.txt` (same parsing), then on
+  each host removes whichever of those paths are currently excluded, via
+  [remove_exclusion_path.ps1](remove_exclusion_path.ps1). Paths not in the
+  list are skipped, and the task only reports `changed` when something was
+  actually removed.
+- [remove_exclusion_path.ps1](remove_exclusion_path.ps1) — expands `%VAR%`
+  references the same way, matches them case-insensitively against the
+  current exclusions, removes the matches via `Remove-MpPreference` and
+  prints them as a JSON array.
 
-Both need the SSH session to be elevated (an admin account): reading
+All of them need the SSH session to be elevated (an admin account): reading
 exclusions as a non-admin returns an `N/A: Must be an administrator...`
-placeholder, and adding them fails outright.
+placeholder, and adding or removing them fails outright.
 
 ## Usage
 
@@ -44,6 +54,9 @@ uv run ansible-playbook -i src/inventory.yaml src/tweak_windows_defender/get_def
 
 # Edit input/tweak_windows_defender/exclusion_path.txt, then:
 uv run ansible-playbook -i src/inventory.yaml src/tweak_windows_defender/add_exclusion_path.yaml
+
+# ...or remove the paths listed there:
+uv run ansible-playbook -i src/inventory.yaml src/tweak_windows_defender/remove_exclusion_path.yaml
 ```
 
 Add `--limit <host_or_group>` to try it on a subset first.

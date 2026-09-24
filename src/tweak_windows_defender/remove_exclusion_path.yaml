@@ -1,0 +1,43 @@
+- name: Load the exclusion paths to remove
+  hosts: localhost
+  gather_facts: false
+  vars:
+    exclusion_path_file: "{{ playbook_dir }}/../../input/tweak_windows_defender/exclusion_path.txt"
+  tasks:
+    - name: Read one path per line, skipping blank lines and # comments
+      # Same parsing as add_exclusion_path.yaml, so a path is removed in
+      # exactly the form it was added (trailing backslashes dropped except
+      # on a drive root like C:\).
+      ansible.builtin.set_fact:
+        exclusion_paths: >-
+          {{ lookup('ansible.builtin.file', exclusion_path_file).splitlines()
+             | map('trim') | reject('equalto', '') | reject('match', '#')
+             | map('regex_replace', '(?<!:)\\+$', '') | unique | list }}
+
+    - name: Fail if there is nothing to remove
+      ansible.builtin.assert:
+        that:
+          - exclusion_paths | length > 0
+        fail_msg: "No paths found in {{ exclusion_path_file }}."
+
+- name: Remove the paths from Windows Defender's exclusion list on every managed host
+  hosts: managed
+  gather_facts: false
+  vars:
+    exclusion_paths: "{{ hostvars['localhost'].exclusion_paths }}"
+    # Each path becomes one single-quoted PowerShell argument (a literal
+    # string, with any ' doubled): ansible.builtin.script hands the cmd line
+    # to PowerShell as-is, which then passes the args on to the script.
+    exclusion_path_args: >-
+      {{ exclusion_paths | map('replace', "'", "''") | map('regex_replace', '^', "'") | map('regex_replace', '$', "'") | join(' ') }}
+  tasks:
+    - name: Remove whichever paths are currently excluded
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/remove_exclusion_path.ps1 {{ exclusion_path_args }}"
+        executable: "powershell -NoProfile -NonInteractive -File"
+      register: remove_result
+      changed_when: (remove_result.stdout | from_json | length) > 0
+
+    - name: Report the paths removed on this host
+      ansible.builtin.debug:
+        msg: "Removed: {{ remove_result.stdout | from_json }}"
