@@ -81,6 +81,10 @@ uv run ansible-galaxy collection install -r requirements.yml
   to the Desktop of every managed host, recycling what's replaced and
   (re)launching it; see
   [src/deploy_robocalui/README.md](src/deploy_robocalui/README.md).
+- [src/tweak_windows_defender/](src/tweak_windows_defender/) — queries
+  Windows Defender's status/exclusion paths on every managed host, and adds
+  exclusion paths listed in a local file; see
+  [src/tweak_windows_defender/README.md](src/tweak_windows_defender/README.md).
 
 > **Caveat:** `playbook.yaml` and `main.py` predate `computes` becoming a real
 > (Windows) host and still assume a POSIX target (`ansible.builtin.script`

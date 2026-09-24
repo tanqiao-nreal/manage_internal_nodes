@@ -1,0 +1,17 @@
+- name: Query Windows Defender status and exclusion paths on every managed host
+  hosts: managed
+  gather_facts: false
+  tasks:
+    - name: Read the running mode, real-time protection and exclusion paths
+      # failed_when: false so a host where Defender is off/uninstalled (the
+      # cmdlets throw) is reported below instead of aborting the run.
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/get_defender_status.ps1"
+        executable: "powershell -NoProfile -NonInteractive -File"
+      register: defender_result
+      changed_when: false
+      failed_when: false
+
+    - name: Show the Defender status
+      ansible.builtin.debug:
+        msg: "{{ defender_result.stdout | from_json if defender_result.rc == 0 else 'ERROR: ' + (defender_result.stderr | default('') | trim) }}"
