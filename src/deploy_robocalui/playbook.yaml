@@ -21,6 +21,14 @@
       delegate_to: localhost
       run_once: true
 
+    - name: Checksum the local robocalui EXE
+      ansible.builtin.stat:
+        path: "{{ local_exe_path }}"
+        checksum_algorithm: sha256
+      register: local_exe_stat
+      delegate_to: localhost
+      run_once: true
+
     - name: Resolve the connecting user's Desktop path
       # Desktop lives under a different username per host (User vs xreal -
       # see inventory.yaml) - resolving $env:USERPROFILE dynamically avoids
@@ -34,6 +42,22 @@
       ansible.builtin.set_fact:
         remote_desktop_dir: "{{ userprofile_result.stdout | trim }}\\Desktop"
         remote_temp_exe_path: "{{ userprofile_result.stdout | trim }}\\AppData\\Local\\Temp\\{{ exe_filename }}"
+
+    - name: Checksum the same-named robocalui EXE on the Desktop, if any
+      ansible.windows.win_stat:
+        path: "{{ remote_desktop_dir }}\\{{ exe_filename }}"
+        get_checksum: true
+        checksum_algorithm: sha256
+      register: remote_exe_stat
+
+    - name: Skip this host if its Desktop EXE is already identical to the local one
+      # Nothing below runs for this host - robocalui isn't stopped,
+      # replaced or relaunched, so a host already on this build is left
+      # completely untouched.
+      ansible.builtin.meta: end_host
+      when:
+        - remote_exe_stat.stat.exists
+        - remote_exe_stat.stat.checksum == local_exe_stat.stat.checksum
 
     - name: Push the robocalui EXE to a temp location
       ansible.windows.win_copy:
@@ -66,7 +90,7 @@
       # Empty existing_exe.files (nothing to replace) just means zero loop
       # iterations here - the rest of the playbook runs unchanged either way.
       ansible.builtin.script:
-        cmd: "{{ playbook_dir }}/recycle_file.ps1 \"{{ item.path }}\""
+        cmd: '{{ playbook_dir }}/recycle_file.ps1 "{{ item.path }}"'
         executable: "powershell -NoProfile -NonInteractive -File"
       loop: "{{ existing_exe.files }}"
       loop_control:

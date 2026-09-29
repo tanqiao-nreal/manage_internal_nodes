@@ -19,7 +19,10 @@ that also needs to be running afterwards.
   it finds zero or more than one candidate); then, per host: resolves the
   connecting user's Desktop path dynamically (`$env:USERPROFILE`, since
   it differs between the `collectors` and `computes` groups — see
-  `inventory.yaml`), and pushes the new EXE to that user's own
+  `inventory.yaml`), and compares the SHA-256 of the local EXE against a
+  same-named EXE already on that Desktop — if they match, the host is
+  already on this build and is skipped entirely (`meta: end_host`: no
+  push, no stop, no relaunch). Otherwise it pushes the new EXE to that user's own
   `AppData\Local\Temp` *first*. Only once that copy has actually landed
   does anything disruptive happen: the running `robocalui_*` process (if
   any) is stopped, the existing `robocalui_*.exe` on the Desktop (if any)
