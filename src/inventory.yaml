@@ -94,13 +94,13 @@ managed:
           ansible_host: 10.32.3.87
           ansible_user: xreal
         compute_17:
-          ansible_host: 10.32.3.79
+          ansible_host: 10.32.3.157
           ansible_user: xreal
         compute_18:
-          ansible_host: 10.32.3.102
+          ansible_host: 10.32.3.164
           ansible_user: xreal
         compute_19:
-          ansible_host: 10.32.3.37
+          ansible_host: 10.32.3.156
           ansible_user: xreal
         compute_20:
           ansible_host: 10.32.3.159
