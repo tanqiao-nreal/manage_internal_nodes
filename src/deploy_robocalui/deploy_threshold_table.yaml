@@ -1,0 +1,19 @@
+- name: Deploy xreal_threshold_table.csv next to robocalui on every compute host
+  hosts: computes
+  gather_facts: false
+  vars:
+    local_csv_path: "{{ playbook_dir }}/../../input/robocalui/xreal_threshold_table.csv"
+  tasks:
+    - name: Resolve the connecting user's Desktop path
+      # Same reasoning as deploy_exe.yaml: resolve $env:USERPROFILE rather
+      # than hardcoding the username.
+      ansible.windows.win_shell: Write-Output $env:USERPROFILE
+      changed_when: false
+      register: userprofile_result
+
+    - name: Push the threshold table to the Desktop
+      # win_copy compares checksums itself, so a host that already has an
+      # identical copy is reported as ok rather than changed.
+      ansible.windows.win_copy:
+        src: "{{ local_csv_path }}"
+        dest: "{{ userprofile_result.stdout | trim }}\\Desktop\\xreal_threshold_table.csv"

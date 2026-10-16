@@ -37,6 +37,13 @@ that also needs to be running afterwards.
   interactive token instead. If the initial push fails (network blip,
   disk full, etc.), the play aborts right there — the host is left
   exactly as it was, still running whatever it was running before.
+- [deploy_threshold_table.yaml](deploy_threshold_table.yaml) — targets
+  `computes` only. Pushes
+  [input/robocalui/xreal_threshold_table.csv](../../input/robocalui/xreal_threshold_table.csv)
+  (needed by newer robocalui builds) to the connecting user's Desktop,
+  alongside `robocalui_*.exe`. Overwrites any existing copy; hosts that
+  already have an identical file are left unchanged. Doesn't touch the
+  running robocalui process.
 - [recycle_file.ps1](recycle_file.ps1) — moves one file (path passed as
   its argument) to the Recycle Bin. Uses `Shell.Application`'s
   `InvokeVerb('delete')`, not
@@ -81,6 +88,12 @@ Each host ends up with only the newly pushed EXE on its Desktop (the
 previous one, if any, went to that host's Recycle Bin rather than being
 deleted outright) and a running instance of it, launched via the
 `RobocaluiLaunch` scheduled task.
+
+To push the threshold table to the compute hosts:
+
+```bash
+uv run ansible-playbook -i src/inventory.yaml src/deploy_robocalui/deploy_threshold_table.yaml
+```
 
 To run the deploy unattended at a set time (e.g. overnight), see
 [scheduled_deploy.md](scheduled_deploy.md).
