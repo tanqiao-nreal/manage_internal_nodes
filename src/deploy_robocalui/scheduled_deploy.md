@@ -1,6 +1,6 @@
 # Scheduling a deploy with `systemd-run --user`
 
-How to run [playbook.yaml](playbook.yaml) unattended at a fixed time (e.g.
+How to run [deploy_exe.yaml](deploy_exe.yaml) unattended at a fixed time (e.g.
 23:00, after everyone has stopped using robocalui) from this control
 machine. Nothing extra needs installing: Ansible has no scheduler of its
 own, `at` isn't installed here, but `systemd-run` ships with systemd.
@@ -28,7 +28,7 @@ systemd-run --user \
   --unit=deploy-robocalui \
   --on-calendar='2026-09-23 23:00:00' \
   --working-directory=/home/tq/workspace/python/ansible_test \
-  /home/tq/.local/bin/uv run ansible-playbook -i src/inventory.yaml src/deploy_robocalui/playbook.yaml
+  /home/tq/.local/bin/uv run ansible-playbook -i src/inventory.yaml src/deploy_robocalui/deploy_exe.yaml
 ```
 
 - `--unit`: the name used by every command below. Pick a new one if a

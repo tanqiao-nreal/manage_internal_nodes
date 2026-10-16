@@ -12,7 +12,7 @@ that also needs to be running afterwards.
 
 ## Files
 
-- [playbook.yaml](playbook.yaml) — targets `managed`. Per run: discovers
+- [deploy_exe.yaml](deploy_exe.yaml) — targets `managed`. Per run: discovers
   the one `robocalui_*.exe` staged in
   [input/robocalui/](../../input/robocalui/) (glob, not hardcoded, since
   the version in the filename changes between releases — fails loudly if
@@ -74,7 +74,7 @@ that was there before — only one may be present when the playbook runs:
 
 ```bash
 uv run ansible-galaxy collection install -r requirements.yml  # one-time, if not already done
-uv run ansible-playbook -i src/inventory.yaml src/deploy_robocalui/playbook.yaml
+uv run ansible-playbook -i src/inventory.yaml src/deploy_robocalui/deploy_exe.yaml
 ```
 
 Each host ends up with only the newly pushed EXE on its Desktop (the
