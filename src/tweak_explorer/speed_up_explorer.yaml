@@ -1,0 +1,18 @@
+- name: Stop Explorer from freezing on folders with many files on every managed host
+  hosts: audios
+  gather_facts: false
+  vars:
+    # Pass -e restart_explorer=true to restart the shell right away (only on
+    # hosts where something changed); otherwise it applies at next sign-in.
+    restart_explorer: false
+  tasks:
+    - name: Turn off folder-type guessing and thumbnails for the connecting user
+      ansible.builtin.script:
+        cmd: "{{ playbook_dir }}/speed_up_explorer.ps1{{ ' -RestartExplorer' if restart_explorer | bool else '' }}"
+        executable: "powershell -NoProfile -NonInteractive -File"
+      register: explorer_result
+      changed_when: (explorer_result.stdout | from_json).Changed | length > 0
+
+    - name: Report what changed on this host
+      ansible.builtin.debug:
+        msg: "{{ explorer_result.stdout | from_json }}"
